@@ -1,0 +1,53 @@
+---
+- hosts: localhost
+  vars:
+     licence_key: enter your newrelic liense key
+
+  tasks:
+  - name: Install new relic rpm
+    yum: 
+       name: http://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
+       state: present
+
+  - name: install newrelic-php5 and pexpect
+    package: name={{ item }} state=present
+    with_items:
+       - newrelic-php5
+       - python-pip
+       - pexpect
+
+  - name: appname change 
+    lineinfile: 
+        path: /etc/php.d/newrelic.ini
+        regexp: '^newrelic.appname'
+        line: 'newrelic.appname = "MyApp1"'
+        state: present
+        backrefs: yes
+
+  - name: New Relic license Key
+    expect:
+       command: newrelic-install install
+       responses:
+          'Enter New Relic license key \(or leave blank\):' :  "{{licence_key}}"
+          'Selection \(1-2, 0 to exit or all\):' : 2
+
+   
+  - name: newrelic daemon port
+    lineinfile:
+         path: /etc/php.d/newrelic.ini
+         regexp: '^;newrelic.daemon.port = "/tmp/.newrelic.sock"'
+         line: 'newrelic.daemon.port = "@newrelic-daemon"'
+         state: present
+         backrefs: yes
+  - name: start newrelic
+    command: /etc/init.d/newrelic-daemon start 
+
+  - name: start newrelic on boot
+    command: /sbin/chkconfig newrelic-daemon on
+
+  - name: restart nginx
+    service: name={{ item }} state=restarted
+    with_items:
+         - nginx
+         - php-fpm.service
+
